@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Alien Depths Neon V5</title>
+<title>Alien Depths Neon V5.1</title>
 <style>
 body {margin:0; overflow:hidden; font-family:Arial, sans-serif; background:linear-gradient(to bottom, #00c6ff, #0072ff);}
 canvas {display:block;}
@@ -13,10 +13,6 @@ canvas {display:block;}
 }
 button {background:transparent; border:2px solid #FF3EC5; color:#FF3EC5; padding:6px 10px; margin:2px; font-size:14px; font-weight:bold; cursor:pointer; border-radius:5px;}
 button:hover {background:#FF3EC5; color:black;}
-#winDisplay {
-  position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-size:48px; font-weight:bold;
-  text-shadow: 0 0 10px #39FF14, 0 0 20px #FF3EC5, 0 0 30px #BF00FF; pointer-events:none; opacity:0;
-}
 #payTable {
   position:absolute; top:20%; left:50%; transform:translateX(-50%); width:300px;
   background: rgba(0,0,0,0.8); color:#39FF14; border:2px solid #FF3EC5; padding:15px; font-weight:bold; font-size:16px;
@@ -34,9 +30,8 @@ button:hover {background:#FF3EC5; color:black;}
 <audio id="hitSound" src="https://freesound.org/data/previews/26/26142_102265-lq.mp3"></audio>
 <audio id="escapeSound" src="https://freesound.org/data/previews/151/151022_2652490-lq.mp3"></audio>
 <audio id="bossSound" src="https://freesound.org/data/previews/341/341695_6265884-lq.mp3"></audio>
-<audio id="bgMusic" src="https://freesound.org/data/previews/502/502179_102265-lq.mp3" loop autoplay></audio>
+<audio id="bgMusic" src="https://freesound.org/data/previews/502/502179_102265-lq.mp3" loop></audio>
  
-<div id="winDisplay"></div>
 <div id="payTable">
   <h3>Pay Table</h3>
   <table>
@@ -71,8 +66,8 @@ const ctx = canvas.getContext("2d");
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
  
-let balance = 500, bet = 1, autoBet = false;
-const subs = [], bullets = [], explosions = [], particles = [], launcherCount = 10, launcherPositions = [];
+let balance = 500, bet = 1, autoBet = false, audioEnabled=false;
+const subs = [], bullets = [], explosions = [], particles = [], launcherCount = 20, launcherPositions = [], subWins=[];
 const types = [
   {health:1, mult:2, speedY:1.5, speedX:0.5},
   {health:2, mult:5, speedY:1.2, speedX:0.7},
@@ -81,102 +76,118 @@ const types = [
 ];
 let lastBossTime=0;
  
-const winDisplay = document.getElementById("winDisplay");
 const payTable = document.getElementById("payTable");
  
 for(let i=0;i<launcherCount;i++) launcherPositions.push((canvas.width/(launcherCount+1))*(i+1));
  
 function setBet(amount){ bet=amount; updateBalance(); }
-function howToPlay(){ showPayTable(); }
 function toggleAutoBet(){ autoBet = !autoBet; document.querySelector("#controlPanel button:nth-child(4)").innerText = "Auto Bet: "+(autoBet?"ON":"OFF"); }
 function showPayTable(){ payTable.style.display=payTable.style.display==='none'?'block':'none'; }
+function updateBalance(){ document.getElementById("balance").innerText = balance; }
  
 function spawnSub(boss=false){
   const type = boss ? {health:10 + Math.floor(Math.random()*11), mult:50 + Math.floor(Math.random()*51), speedY:0.5, speedX:0.2} : types[Math.floor(Math.random()*types.length)];
-  if(boss) document.getElementById("bossSound").play();
+  if(boss && audioEnabled) document.getElementById("bossSound").play();
   subs.push({x:Math.random()*canvas.width, y:canvas.height, health:type.health, maxHealth:type.health, mult:type.mult, speedY:type.speedY, speedX:(Math.random()<0.5?-1:1)*type.speedX, escape:false, boss:boss});
 }
-function spawnInitial(){ for(let i=0;i<3+Math.floor(Math.random()*6);i++) spawnSub(); }
+ 
+function spawnInitial(){
+  const initialCount = 2+Math.floor(Math.random()*9); // 2-10
+  for(let i=0;i<initialCount;i++) spawnSub();
+}
 spawnInitial();
  
 canvas.addEventListener("click", e=>{
+  // unlock audio on first click
+  if(!audioEnabled){
+    document.getElementById("bgMusic").play().catch(()=>{});
+    audioEnabled=true;
+  }
+ 
   if(balance<bet) return;
   let nearest = launcherPositions.reduce((p,c)=> Math.abs(c-e.clientX)<Math.abs(p-e.clientX)?c:p);
-  balance-=bet;
+  balance-=bet; updateBalance();
   bullets.push({x:nearest, y:50, radius:5, trail:[]});
-  updateBalance();
-  document.getElementById("launchSound").currentTime=0; document.getElementById("launchSound").play();
+  if(audioEnabled){ document.getElementById("launchSound").currentTime=0; document.getElementById("launchSound").play(); }
 });
- 
-function updateBalance(){ document.getElementById("balance").innerText = balance; }
- 
-function showWin(amount, boss=false){
-  winDisplay.innerText = "+"+amount+" SZL";
-  winDisplay.style.color = boss ? "#00FFFF" : "#39FF14";
-  winDisplay.style.opacity=1;
-  setTimeout(()=>{winDisplay.style.opacity=0;},800);
-}
- 
-// Draw launchers
-function drawLauncher(x){ ctx.fillStyle="#FF3EC5"; ctx.fillRect(x-15,0,30,30); }
-// Draw bullets
-function drawBullet(b){
-  b.trail.push({x:b.x,y:b.y});
-  if(b.trail.length>10) b.trail.shift();
-  for(let i=0;i<b.trail.length;i++){ ctx.fillStyle=`rgba(255,255,0,${i/b.trail.length})`; ctx.beginPath(); ctx.arc(b.trail[i].x,b.trail[i].y,b.radius/2,0,Math.PI*2); ctx.fill(); }
-  ctx.fillStyle="yellow"; ctx.beginPath(); ctx.arc(b.x,b.y,b.radius,0,Math.PI*2); ctx.fill();
-}
-// Draw subs
-function drawSub(sub){
-  let glow = 10 + Math.sin(Date.now()/200)*5;
-  ctx.shadowColor = sub.escape?"#39FF14":(sub.boss?"#00FFFF":"#BF00FF");
-  ctx.shadowBlur=glow;
-  ctx.fillStyle = sub.escape?"#39FF14":(sub.boss?"#00FFFF":"#BF00FF");
-  ctx.beginPath(); ctx.ellipse(sub.x, sub.y, sub.boss?50:30, sub.boss?25:15, 0, 0, Math.PI*2); ctx.fill();
-  ctx.shadowBlur=0;
-  if(!sub.escape){ ctx.fillStyle="red"; ctx.fillRect(sub.x-30,sub.y-25,60,5); ctx.fillStyle="#39FF14"; ctx.fillRect(sub.x-30,sub.y-25,60*(sub.health/sub.maxHealth),5);}
-}
-// Draw explosions
-function drawExplosion(ex){ ctx.strokeStyle=`hsl(${Math.random()*360},100%,50%)`; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(ex.x,ex.y,ex.radius,0,Math.PI*2); ctx.stroke(); }
-// Draw particles
-function drawParticles(){ particles.forEach((p,i)=>{ ctx.fillStyle=p.color; ctx.beginPath(); ctx.arc(p.x,p.y,p.size,0,Math.PI*2); ctx.fill(); p.x+=p.vx; p.y+=p.vy; p.life--; if(p.life<=0) particles.splice(i,1); }); }
  
 function spawnParticles(x,y,count,color){ for(let i=0;i<count;i++){ particles.push({x:x,y:y,vx:(Math.random()-0.5)*3,vy:(Math.random()-0.5)*3,size:2+Math.random()*2,life:20+Math.random()*10,color:color}); } }
  
 function gameLoop(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
+ 
   // Spawn boss every 30 sec
   if(Date.now()-lastBossTime>30000){ lastBossTime=Date.now(); spawnSub(true); }
  
-  launcherPositions.forEach(x=> drawLauncher(x));
+  // Maintain 2-10 subs
+  while(subs.length<2) spawnSub();
+  while(subs.length>10) subs.pop();
  
-  bullets.forEach((b,i)=>{ b.y+=6; drawBullet(b); if(b.y>canvas.height) bullets.splice(i,1); });
+  // Draw launchers
+  launcherPositions.forEach(x=>{ ctx.fillStyle="#FF3EC5"; ctx.fillRect(x-15,0,30,30); });
  
+  // Bullets
+  bullets.forEach((b,i)=>{
+    b.y+=6; b.trail.push({x:b.x,y:b.y});
+    if(b.trail.length>10) b.trail.shift();
+    for(let j=0;j<b.trail.length;j++){ ctx.fillStyle=`rgba(255,255,0,${j/b.trail.length})`; ctx.beginPath(); ctx.arc(b.trail[j].x,b.trail[j].y,b.radius/2,0,Math.PI*2); ctx.fill(); }
+    ctx.fillStyle="yellow"; ctx.beginPath(); ctx.arc(b.x,b.y,b.radius,0,Math.PI*2); ctx.fill();
+    if(b.y>canvas.height) bullets.splice(i,1);
+  });
+ 
+  // Subs
   subs.forEach((sub,i)=>{
     if(!sub.escape){ sub.y-=sub.speedY; sub.x+=sub.speedX; if(sub.x<0||sub.x>canvas.width) sub.speedX*=-1; } else sub.y-=2;
-    drawSub(sub);
+ 
+    // Draw sub
+    let glow = 10 + Math.sin(Date.now()/200)*5;
+    ctx.shadowColor = sub.escape?"#39FF14":(sub.boss?"#00FFFF":"#BF00FF");
+    ctx.shadowBlur=glow;
+    ctx.fillStyle = sub.escape?"#39FF14":(sub.boss?"#00FFFF":"#BF00FF");
+    ctx.beginPath(); ctx.ellipse(sub.x, sub.y, sub.boss?50:30, sub.boss?25:15, 0, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur=0;
+    if(!sub.escape){ ctx.fillStyle="red"; ctx.fillRect(sub.x-30,sub.y-25,60,5); ctx.fillStyle="#39FF14"; ctx.fillRect(sub.x-30,sub.y-25,60*(sub.health/sub.maxHealth),5); }
+ 
+    // Check hits
     bullets.forEach((b,bi)=>{
       const dx=b.x-sub.x, dy=b.y-sub.y;
       if(Math.sqrt(dx*dx+dy*dy)<25 && !sub.escape){
-        if(Math.random()<0.9) sub.health--;
+        sub.health--;
         bullets.splice(bi,1);
         spawnParticles(sub.x,sub.y,10,sub.boss?"#00FFFF":"#39FF14");
         if(sub.health<=0){
-          let winAmt = bet*sub.mult;
-          balance+=winAmt; updateBalance();
-          showWin(winAmt, sub.boss);
+          // Floating win display
+          subWins.push({x:sub.x, y:sub.y, amount: bet*sub.mult, opacity:1, color:sub.boss?"#00FFFF":"#39FF14"});
+          balance += bet*sub.mult; updateBalance();
           explosions.push({x:sub.x,y:sub.y,radius:10});
-          document.getElementById("hitSound").currentTime=0; document.getElementById("hitSound").play();
+          if(audioEnabled) document.getElementById("hitSound").currentTime=0; document.getElementById("hitSound").play();
           subs.splice(i,1); spawnSub();
         }
       }
     });
-    if(sub.y<50 && !sub.escape){ sub.escape=true; document.getElementById("escapeSound").currentTime=0; document.getElementById("escapeSound").play(); }
+ 
+    if(sub.y<50 && !sub.escape){ sub.escape=true; if(audioEnabled) document.getElementById("escapeSound").currentTime=0; document.getElementById("escapeSound").play(); }
     if(sub.y<-60) subs.splice(i,1);
   });
  
-  explosions.forEach((ex,i)=>{ ex.radius+=2; drawExplosion(ex); if(ex.radius>30) explosions.splice(i,1); });
-  drawParticles();
+  // Draw explosions
+  explosions.forEach((ex,i)=>{ ctx.strokeStyle=`hsl(${Math.random()*360},100%,50%)`; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(ex.x,ex.y,ex.radius,0,Math.PI*2); ctx.stroke(); ex.radius+=2; if(ex.radius>30) explosions.splice(i,1); });
+ 
+  // Draw floating sub wins
+  subWins.forEach((win,i)=>{
+    ctx.font = "bold 24px Arial"; ctx.fillStyle = win.color; ctx.globalAlpha = win.opacity;
+    ctx.fillText("+"+win.amount+" SZL", win.x-15, win.y);
+    ctx.globalAlpha = 1;
+    win.y -= 1; win.opacity -= 0.02;
+    if(win.opacity<=0) subWins.splice(i,1);
+  });
+ 
+  // Draw particles
+  particles.forEach((p,i)=>{
+    ctx.fillStyle=p.color; ctx.beginPath(); ctx.arc(p.x,p.y,p.size,0,Math.PI*2); ctx.fill();
+    p.x+=p.vx; p.y+=p.vy; p.life--; if(p.life<=0) particles.splice(i,1);
+  });
+ 
   requestAnimationFrame(gameLoop);
 }
 gameLoop();
