@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Alien Depths Neon V7.0</title>
+<title>Alien Depths Neon V7.3 (Audio Generated)</title>
 <style>
 body {margin:0; overflow:hidden; font-family:Arial, sans-serif; background:linear-gradient(to bottom, #00c6ff, #0072ff);}
 canvas {display:block;}
@@ -24,14 +24,6 @@ button:hover {background:#FF3EC5; color:black;}
 </style>
 </head>
 <body>
- 
-<!-- Audio from free online sources -->
-<audio id="launchSound" src="https://freesound.org/data/previews/331/331912_3248244-lq.mp3"></audio>
-<audio id="hitSound" src="https://freesound.org/data/previews/170/170064_2437358-lq.mp3"></audio>
-<audio id="failSound" src="https://freesound.org/data/previews/341/341695_3248244-lq.mp3"></audio>
-<audio id="escapeSound" src="https://freesound.org/data/previews/146/146726_3248244-lq.mp3"></audio>
-<audio id="bossSound" src="https://freesound.org/data/previews/264/264572_3248244-lq.mp3"></audio>
-<audio id="bgMusic" src="https://freesound.org/data/previews/466/466089_3248244-lq.mp3" loop></audio>
  
 <div id="payTable">
   <h3>Pay Table</h3>
@@ -78,12 +70,20 @@ let pulse=0;
  
 const payTable=document.getElementById("payTable");
 const balanceEl=document.getElementById("balance");
-const launchSound=document.getElementById("launchSound");
-const hitSound=document.getElementById("hitSound");
-const failSound=document.getElementById("failSound");
-const escapeSound=document.getElementById("escapeSound");
-const bossSound=document.getElementById("bossSound");
-const bgMusic=document.getElementById("bgMusic");
+ 
+function playTone(freq,duration,volume=0.3){
+  if(!audioEnabled) return;
+  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  const oscillator = audioCtx.createOscillator();
+  const gainNode = audioCtx.createGain();
+  oscillator.connect(gainNode);
+  gainNode.connect(audioCtx.destination);
+  gainNode.gain.value=volume;
+  oscillator.type="sine";
+  oscillator.frequency.value=freq;
+  oscillator.start();
+  oscillator.stop(audioCtx.currentTime+duration/1000);
+}
  
 function setBet(amount){ bet=amount; balanceEl.innerText=balance; }
 function toggleAutoBet(){ autoBet=!autoBet; document.getElementById("autoBtn").innerText="Auto Bet: "+(autoBet?"ON":"OFF"); }
@@ -100,7 +100,7 @@ function spawnSub(boss=false){
   if(boss){
     sub={x:Math.random()*canvas.width,y:canvas.height,health:10+Math.floor(Math.random()*11),maxHealth:0,mult:50+Math.floor(Math.random()*51),speedY:0.5,speedX:0.2,boss:true,escape:false};
     sub.maxHealth=sub.health;
-    if(audioEnabled) bossSound.play();
+    playTone(80,300);
   } else if(Math.random()<0.15){
     sub={x:Math.random()*canvas.width,y:canvas.height,health:1+Math.floor(Math.random()*2),maxHealth:0,speedY:1,speedX:(Math.random()<0.5?-0.5:0.5),special:true,escape:false,mult:0};
     sub.maxHealth=sub.health;
@@ -118,23 +118,53 @@ let mouseX=canvas.width/2, mouseY=canvas.height/2;
 canvas.addEventListener("mousemove",e=>{mouseX=e.clientX; mouseY=e.clientY;});
  
 canvas.addEventListener("click", e=>{
-  if(!audioEnabled){ bgMusic.play().catch(()=>{}); audioEnabled=true; }
+  if(!audioEnabled) audioEnabled=true;
   if(balance<bet) return;
   const nearestCannon = launcherPositions.reduce((p,c)=>Math.abs(c.x-e.clientX)<Math.abs(p.x-e.clientX)?c:p);
   const angle=Math.atan2(e.clientY-nearestCannon.y,e.clientX-nearestCannon.x);
   bullets.push({x:nearestCannon.x,y:nearestCannon.y,vx:Math.cos(angle)*6,vy:Math.sin(angle)*6,radius:5,trail:[]});
   balance-=bet; balanceEl.innerText=balance;
-  if(audioEnabled){ launchSound.currentTime=0; launchSound.play(); }
+  playTone(500,100);
 });
  
 function spawnParticles(x,y,count,color){ for(let i=0;i<count;i++){ particles.push({x:x,y:y,vx:(Math.random()-0.5)*3,vy:(Math.random()-0.5)*3,size:2+Math.random()*2,life:20+Math.random()*10,color:color}); } }
  
+function drawSeaBackground() {
+  // Coral
+  for(let i=0; i<5; i++){
+    ctx.fillStyle = "pink";
+    ctx.beginPath();
+    ctx.moveTo(50+i*200, canvas.height-30);
+    ctx.lineTo(55+i*200, canvas.height-60);
+    ctx.lineTo(60+i*200, canvas.height-30);
+    ctx.fill();
+  }
+  // Seaweed
+  for(let i=0; i<7; i++){
+    ctx.strokeStyle = "green";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(30+i*150, canvas.height-20);
+    ctx.bezierCurveTo(30+i*150, canvas.height-50, 40+i*150, canvas.height-80, 30+i*150, canvas.height-110);
+    ctx.stroke();
+  }
+  // Bubbles
+  for(let i=0; i<10; i++){
+    const x = Math.random()*canvas.width;
+    const y = canvas.height - Math.random()*150;
+    ctx.fillStyle = "rgba(173,216,230,0.5)";
+    ctx.beginPath();
+    ctx.arc(x, y, Math.random()*5+2, 0, Math.PI*2);
+    ctx.fill();
+  }
+}
+ 
 function gameLoop(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
+  drawSeaBackground();
   pulse += 0.1;
- 
   if(Date.now()-lastBossTime>30000){ lastBossTime=Date.now(); spawnSub(true); }
-  while(subs.length<2) spawnSub();
+  while(subs.length<5) spawnSub();
   while(subs.length>10) subs.pop();
  
   launcherPositions.forEach(c=>{
@@ -145,6 +175,9 @@ function gameLoop(){
     ctx.rotate(c.angle);
     ctx.fillStyle="#FF3EC5";
     ctx.fillRect(-10,-10,20,40);
+    ctx.fillStyle="#FFFF00";
+    ctx.beginPath();
+    ctx.moveTo(0,20); ctx.lineTo(-5,30); ctx.lineTo(5,30); ctx.closePath(); ctx.fill();
     ctx.restore();
   });
  
@@ -152,63 +185,31 @@ function gameLoop(){
     b.trail.push({x:b.x,y:b.y}); if(b.trail.length>10) b.trail.shift();
     for(let j=0;j<b.trail.length;j++){ ctx.fillStyle=`rgba(255,255,0,${j/b.trail.length})`; ctx.beginPath(); ctx.arc(b.trail[j].x,b.trail[j].y,b.radius/2,0,Math.PI*2); ctx.fill(); }
     ctx.fillStyle="yellow"; ctx.beginPath(); ctx.arc(b.x,b.y,b.radius,0,Math.PI*2); ctx.fill();
-    b.x+=b.vx; b.y+=b.vy;
-    if(b.y>canvas.height||b.x<0||b.x>canvas.width) bullets.splice(i,1);
+    b.x+=b.vx; b.y+=b.vy; if(b.y>canvas.height||b.x<0||b.x>canvas.width) bullets.splice(i,1);
   });
  
   subs.forEach((sub,i)=>{
     if(!sub.escape){ sub.y-=sub.speedY; sub.x+=sub.speedX; if(sub.x<0||sub.x>canvas.width) sub.speedX*=-1; } else sub.y-=2;
- 
-    if(sub.special){
-      const pulseGlow = 10 + Math.sin(pulse)*10;
-      ctx.shadowBlur = pulseGlow;
-      ctx.shadowColor = "white";
- 
-      // Double-color neon diagonal
-      ctx.beginPath();
-      ctx.moveTo(sub.x-15, sub.y-15);
-      ctx.lineTo(sub.x+15, sub.y-5);
-      ctx.lineTo(sub.x+15, sub.y+5);
-      ctx.lineTo(sub.x-15, sub.y+15);
-      ctx.closePath();
- 
-      const grad = ctx.createLinearGradient(sub.x-15, sub.y-15, sub.x+15, sub.y+15);
-      grad.addColorStop(0, "#FF3EC5"); // neon pink
-      grad.addColorStop(1, "#00FFFF"); // neon blue
-      ctx.fillStyle = grad;
-      ctx.fill();
-      ctx.shadowBlur = 0;
-    } else { 
-      ctx.fillStyle=sub.boss?"#00FFFF":"#BF00FF"; 
-      ctx.beginPath(); 
-      ctx.ellipse(sub.x,sub.y,sub.boss?50:30,sub.boss?25:15,0,0,Math.PI*2); 
-      ctx.fill(); 
-    }
+    ctx.fillStyle=sub.boss?"#00FFFF":"#BF00FF"; 
+    ctx.beginPath(); ctx.ellipse(sub.x,sub.y,sub.boss?50:30,sub.boss?25:15,0,0,Math.PI*2); ctx.fill();
  
     bullets.forEach((b,bi)=>{
       const dx=b.x-sub.x, dy=b.y-sub.y;
       if(Math.sqrt(dx*dx+dy*dy)<25 && !sub.escape){
-        sub.health--;
-        bullets.splice(bi,1);
-        spawnParticles(sub.x,sub.y,10,sub.special?null:(sub.boss?"#00FFFF":"#39FF14"));
+        sub.health--; bullets.splice(bi,1);
+        spawnParticles(sub.x,sub.y,10,sub.boss?"#00FFFF":"#39FF14");
         if(sub.health<=0){
           let winAmount=sub.mult;
-          if(sub.special){ 
-            winAmount=Math.random()<0.5?0:Math.floor(Math.random()*11+5)*bet; 
-            if(winAmount===0 && audioEnabled){ failSound.currentTime=0; failSound.play(); } 
-            else if(audioEnabled){ hitSound.currentTime=0; hitSound.play(); } 
-          } else if(audioEnabled){ hitSound.currentTime=0; hitSound.play(); }
- 
-          subWins.push({x:sub.x,y:sub.y,amount:winAmount,opacity:1,color:sub.special?grad:(sub.boss?"#00FFFF":"#39FF14")});
+          let winColor="#FF3EC5";
+          subWins.push({x:sub.x,y:sub.y,amount:winAmount,opacity:1,color:winColor});
           balance+=winAmount; balanceEl.innerText=balance;
- 
-          if(!sub.special) explosions.push({x:sub.x,y:sub.y,radius:10});
+          playTone(200+Math.random()*400,200); // sub explode
           subs.splice(i,1); spawnSub();
         }
       }
     });
  
-    if(sub.y<50 && !sub.escape){ sub.escape=true; if(audioEnabled){ escapeSound.currentTime=0; escapeSound.play(); } }
+    if(sub.y<50 && !sub.escape){ sub.escape=true; playTone(150,200); }
     if(sub.y<-60) subs.splice(i,1);
   });
  
