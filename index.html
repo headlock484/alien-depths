@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Alien Depths</title>
+<style>
+body {
+  margin:0;
+  overflow:hidden;
+  font-family:Arial, sans-serif;
+  background:linear-gradient(to bottom, #00c6ff, #0072ff);
+  color:white;
+  text-align:center;
+}
+#ui {
+  position:absolute;
+  top:10px;
+  width:100%;
+  z-index:2;
+}
+button {
+  padding:6px 10px;
+  margin:3px;
+  font-size:14px;
+}
+canvas {
+  display:block;
+}
+</style>
+</head>
+<body>
+ 
+<div id="ui">
+  <div>Balance: SZL <span id="balance">500</span></div>
+  <div>
+    Bet:
+    <button onclick="setBet(1)">1</button>
+    <button onclick="setBet(2)">2</button>
+    <button onclick="setBet(5)">5</button>
+    <button onclick="setBet(10)">10</button>
+    <button onclick="setBet(20)">20</button>
+  </div>
+  <div>Current Bet: SZL <span id="currentBet">1</span></div>
+</div>
+ 
+<canvas id="game"></canvas>
+ 
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+ 
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+ 
+let balance = 500;
+let bet = 1;
+ 
+const subs = [];
+const bullets = [];
+const explosions = [];
+ 
+const types = [
+  {health:1, mult:2, speed:1.5},
+  {health:2, mult:5, speed:1.2},
+  {health:3, mult:10, speed:0.9},
+  {health:5, mult:25, speed:0.6}
+];
+ 
+function setBet(amount){
+  bet = amount;
+  document.getElementById("currentBet").innerText = bet;
+}
+ 
+function spawnSub(){
+  const type = types[Math.floor(Math.random()*types.length)];
+  subs.push({
+    x: Math.random()*canvas.width,
+    y: canvas.height,
+    health: type.health,
+    maxHealth: type.health,
+    mult: type.mult,
+    speed: type.speed,
+    escape:false
+  });
+}
+ 
+function spawnInitial(){
+  const count = 3 + Math.floor(Math.random()*6);
+  for(let i=0;i<count;i++){
+    spawnSub();
+  }
+}
+ 
+spawnInitial();
+ 
+canvas.addEventListener("click", e=>{
+  if(balance < bet) return;
+  balance -= bet;
+  updateBalance();
+  bullets.push({
+    x: e.clientX,
+    y: 0,
+    radius:5
+  });
+});
+ 
+function updateBalance(){
+  document.getElementById("balance").innerText = balance;
+}
+ 
+function drawSub(sub){
+  ctx.fillStyle = sub.escape ? "lime" : "purple";
+  ctx.beginPath();
+  ctx.ellipse(sub.x, sub.y, 30, 15, 0, 0, Math.PI*2);
+  ctx.fill();
+ 
+  // health bar
+  if(!sub.escape){
+    ctx.fillStyle="red";
+    ctx.fillRect(sub.x-30, sub.y-25, 60, 5);
+    ctx.fillStyle="lime";
+    ctx.fillRect(sub.x-30, sub.y-25, 60*(sub.health/sub.maxHealth), 5);
+  }
+}
+ 
+function drawBullet(b){
+  ctx.fillStyle="yellow";
+  ctx.beginPath();
+  ctx.arc(b.x,b.y,b.radius,0,Math.PI*2);
+  ctx.fill();
+}
+ 
+function drawExplosion(ex){
+  ctx.strokeStyle="cyan";
+  ctx.beginPath();
+  ctx.arc(ex.x, ex.y, ex.radius, 0, Math.PI*2);
+  ctx.stroke();
+}
+ 
+function gameLoop(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+ 
+  // bullets
+  bullets.forEach((b,i)=>{
+    b.y += 6;
+    drawBullet(b);
+    if(b.y > canvas.height) bullets.splice(i,1);
+  });
+ 
+  // subs
+  subs.forEach((sub,i)=>{
+    if(!sub.escape){
+      sub.y -= sub.speed;
+    } else {
+      sub.y -= 2;
+    }
+ 
+    drawSub(sub);
+ 
+    // collision
+    bullets.forEach((b,bi)=>{
+      const dx = b.x - sub.x;
+      const dy = b.y - sub.y;
+      if(Math.sqrt(dx*dx + dy*dy) < 25 && !sub.escape){
+        
+        // RTP style randomness (90% hit chance)
+        if(Math.random() < 0.9){
+          sub.health--;
+        }
+ 
+        bullets.splice(bi,1);
+ 
+        if(sub.health <= 0){
+          balance += bet * sub.mult;
+          updateBalance();
+          explosions.push({x:sub.x, y:sub.y, radius:10});
+          subs.splice(i,1);
+          spawnSub();
+        }
+      }
+    });
+ 
+    // escape
+    if(sub.y < 50 && !sub.escape){
+      sub.escape = true;
+    }
+ 
+    if(sub.y < -20){
+      subs.splice(i,1);
+      spawnSub();
+    }
+  });
+ 
+  // explosions
+  explosions.forEach((ex,i)=>{
+    ex.radius += 2;
+    drawExplosion(ex);
+    if(ex.radius > 30){
+      explosions.splice(i,1);
+    }
+  });
+ 
+  requestAnimationFrame(gameLoop);
+}
+ 
+gameLoop();
+</script>
+ 
+</body>
+</html>
+ 
