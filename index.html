@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Alien Depths Neon V5.3</title>
+<title>Alien Depths Neon V7.0</title>
 <style>
 body {margin:0; overflow:hidden; font-family:Arial, sans-serif; background:linear-gradient(to bottom, #00c6ff, #0072ff);}
 canvas {display:block;}
@@ -25,13 +25,13 @@ button:hover {background:#FF3EC5; color:black;}
 </head>
 <body>
  
-<!-- Audio hosted in repo -->
-<audio id="launchSound" src="./launch.mp3"></audio>
-<audio id="hitSound" src="./hit.mp3"></audio>
-<audio id="escapeSound" src="./escape.mp3"></audio>
-<audio id="bossSound" src="./boss.mp3"></audio>
-<audio id="failSound" src="./fail.mp3"></audio>
-<audio id="bgMusic" src="./bgMusic.mp3" loop></audio>
+<!-- Audio from free online sources -->
+<audio id="launchSound" src="https://freesound.org/data/previews/331/331912_3248244-lq.mp3"></audio>
+<audio id="hitSound" src="https://freesound.org/data/previews/170/170064_2437358-lq.mp3"></audio>
+<audio id="failSound" src="https://freesound.org/data/previews/341/341695_3248244-lq.mp3"></audio>
+<audio id="escapeSound" src="https://freesound.org/data/previews/146/146726_3248244-lq.mp3"></audio>
+<audio id="bossSound" src="https://freesound.org/data/previews/264/264572_3248244-lq.mp3"></audio>
+<audio id="bgMusic" src="https://freesound.org/data/previews/466/466089_3248244-lq.mp3" loop></audio>
  
 <div id="payTable">
   <h3>Pay Table</h3>
@@ -52,14 +52,14 @@ button:hover {background:#FF3EC5; color:black;}
   <div>Balance: SZL <span id="balance">500</span></div>
   <div>
     Bet: 
-    <button onclick="setBet(1)">1</button>
-    <button onclick="setBet(2)">2</button>
-    <button onclick="setBet(5)">5</button>
-    <button onclick="setBet(10)">10</button>
-    <button onclick="setBet(20)">20</button>
+    <button data-bet="1">1</button>
+    <button data-bet="2">2</button>
+    <button data-bet="5">5</button>
+    <button data-bet="10">10</button>
+    <button data-bet="20">20</button>
   </div>
-  <div><button onclick="showPayTable()">How to Play</button></div>
-  <div><button onclick="toggleAutoBet()">Auto Bet: OFF</button></div>
+  <div><button id="payBtn">How to Play</button></div>
+  <div><button id="autoBtn">Auto Bet: OFF</button></div>
 </div>
  
 <script>
@@ -70,47 +70,43 @@ canvas.height = window.innerHeight;
  
 let balance = 500, bet = 1, autoBet = false;
 let audioEnabled=false;
- 
-const subs = [], bullets = [], explosions = [], particles = [], subWins=[];
-const types = [
-  {health:1, mult:2, speedY:1.5, speedX:0.5},
-  {health:2, mult:5, speedY:1.2, speedX:0.7},
-  {health:3, mult:10, speedY:0.9, speedX:0.4},
-  {health:5, mult:25, speedY:0.6, speedX:0.3}
-];
- 
-const launcherPositions = [{x:50, y:50, angle:0}, {x:canvas.width-50, y:50, angle:0}];
+const subs=[], bullets=[], explosions=[], particles=[], subWins=[];
+const types=[{health:1,mult:2,speedY:1.5,speedX:0.5},{health:2,mult:5,speedY:1.2,speedX:0.7},{health:3,mult:10,speedY:0.9,speedX:0.4},{health:5,mult:25,speedY:0.6,speedX:0.3}];
+const launcherPositions=[{x:50,y:50,angle:0},{x:canvas.width-50,y:50,angle:0}];
 let lastBossTime=0;
+let pulse=0;
  
-const payTable = document.getElementById("payTable");
+const payTable=document.getElementById("payTable");
+const balanceEl=document.getElementById("balance");
+const launchSound=document.getElementById("launchSound");
+const hitSound=document.getElementById("hitSound");
+const failSound=document.getElementById("failSound");
+const escapeSound=document.getElementById("escapeSound");
+const bossSound=document.getElementById("bossSound");
+const bgMusic=document.getElementById("bgMusic");
  
-function setBet(amount){ bet=amount; updateBalance(); }
-function toggleAutoBet(){ autoBet = !autoBet; document.querySelector("#controlPanel button:nth-child(4)").innerText = "Auto Bet: "+(autoBet?"ON":"OFF"); }
+function setBet(amount){ bet=amount; balanceEl.innerText=balance; }
+function toggleAutoBet(){ autoBet=!autoBet; document.getElementById("autoBtn").innerText="Auto Bet: "+(autoBet?"ON":"OFF"); }
 function showPayTable(){ payTable.style.display=payTable.style.display==='none'?'block':'none'; }
-function updateBalance(){ document.getElementById("balance").innerText = balance; }
  
-const launchSound = new Audio("./launch.mp3");
-const hitSound = new Audio("./hit.mp3");
-const escapeSound = new Audio("./escape.mp3");
-const bossSound = new Audio("./boss.mp3");
-const failSound = new Audio("./fail.mp3");
-const bgMusic = new Audio("./bgMusic.mp3");
-bgMusic.loop=true;
+document.querySelectorAll("#controlPanel button[data-bet]").forEach(btn=>{
+  btn.addEventListener("click",()=>setBet(Number(btn.dataset.bet)));
+});
+document.getElementById("autoBtn").addEventListener("click",toggleAutoBet);
+document.getElementById("payBtn").addEventListener("click",showPayTable);
  
 function spawnSub(boss=false){
   let sub;
   if(boss){
-    sub = {x:Math.random()*canvas.width, y:canvas.height, health:10 + Math.floor(Math.random()*11), maxHealth:0, mult:50 + Math.floor(Math.random()*51), speedY:0.5, speedX:0.2, boss:true, escape:false};
+    sub={x:Math.random()*canvas.width,y:canvas.height,health:10+Math.floor(Math.random()*11),maxHealth:0,mult:50+Math.floor(Math.random()*51),speedY:0.5,speedX:0.2,boss:true,escape:false};
     sub.maxHealth=sub.health;
     if(audioEnabled) bossSound.play();
-  } else if(Math.random()<0.15){ // Risk/Reward sub
-    const colors = ["#FF3EC5","#00FFFF"];
-    const color = colors[Math.floor(Math.random()*colors.length)];
-    sub = {x:Math.random()*canvas.width, y:canvas.height, health:1+Math.floor(Math.random()*2), maxHealth:0, speedY:1, speedX:(Math.random()<0.5?-0.5:0.5), special:true, color:color, escape:false, mult:0};
+  } else if(Math.random()<0.15){
+    sub={x:Math.random()*canvas.width,y:canvas.height,health:1+Math.floor(Math.random()*2),maxHealth:0,speedY:1,speedX:(Math.random()<0.5?-0.5:0.5),special:true,escape:false,mult:0};
     sub.maxHealth=sub.health;
-  } else { // normal subs
-    const type = types[Math.floor(Math.random()*types.length)];
-    sub = {x:Math.random()*canvas.width, y:canvas.height, health:type.health, maxHealth:type.health, mult:type.mult, speedY:type.speedY, speedX:type.speedX, escape:false, boss:false};
+  } else {
+    const type=types[Math.floor(Math.random()*types.length)];
+    sub={x:Math.random()*canvas.width,y:canvas.height,health:type.health,maxHealth:type.health,mult:type.mult,speedY:type.speedY,speedX:type.speedX,escape:false,boss:false};
   }
   subs.push(sub);
 }
@@ -118,14 +114,16 @@ function spawnSub(boss=false){
 function spawnInitial(){ for(let i=0;i<5;i++) spawnSub(); }
 spawnInitial();
  
+let mouseX=canvas.width/2, mouseY=canvas.height/2;
+canvas.addEventListener("mousemove",e=>{mouseX=e.clientX; mouseY=e.clientY;});
+ 
 canvas.addEventListener("click", e=>{
   if(!audioEnabled){ bgMusic.play().catch(()=>{}); audioEnabled=true; }
- 
   if(balance<bet) return;
   const nearestCannon = launcherPositions.reduce((p,c)=>Math.abs(c.x-e.clientX)<Math.abs(p.x-e.clientX)?c:p);
-  const angle = Math.atan2(e.clientY-nearestCannon.y, e.clientX-nearestCannon.x);
-  bullets.push({x:nearestCannon.x, y:nearestCannon.y, vx:Math.cos(angle)*6, vy:Math.sin(angle)*6, radius:5, trail:[]});
-  balance -= bet; updateBalance();
+  const angle=Math.atan2(e.clientY-nearestCannon.y,e.clientX-nearestCannon.x);
+  bullets.push({x:nearestCannon.x,y:nearestCannon.y,vx:Math.cos(angle)*6,vy:Math.sin(angle)*6,radius:5,trail:[]});
+  balance-=bet; balanceEl.innerText=balance;
   if(audioEnabled){ launchSound.currentTime=0; launchSound.play(); }
 });
  
@@ -133,18 +131,15 @@ function spawnParticles(x,y,count,color){ for(let i=0;i<count;i++){ particles.pu
  
 function gameLoop(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
+  pulse += 0.1;
  
-  // spawn boss
   if(Date.now()-lastBossTime>30000){ lastBossTime=Date.now(); spawnSub(true); }
- 
-  // maintain 2-10 subs
   while(subs.length<2) spawnSub();
   while(subs.length>10) subs.pop();
  
-  // draw cannons
   launcherPositions.forEach(c=>{
-    const dx = mouseX-c.x, dy = mouseY-c.y;
-    c.angle=Math.atan2(dy, dx);
+    const dx=mouseX-c.x, dy=mouseY-c.y;
+    c.angle=Math.atan2(dy,dx);
     ctx.save();
     ctx.translate(c.x,c.y);
     ctx.rotate(c.angle);
@@ -153,11 +148,81 @@ function gameLoop(){
     ctx.restore();
   });
  
-  // bullets
   bullets.forEach((b,i)=>{
     b.trail.push({x:b.x,y:b.y}); if(b.trail.length>10) b.trail.shift();
     for(let j=0;j<b.trail.length;j++){ ctx.fillStyle=`rgba(255,255,0,${j/b.trail.length})`; ctx.beginPath(); ctx.arc(b.trail[j].x,b.trail[j].y,b.radius/2,0,Math.PI*2); ctx.fill(); }
     ctx.fillStyle="yellow"; ctx.beginPath(); ctx.arc(b.x,b.y,b.radius,0,Math.PI*2); ctx.fill();
     b.x+=b.vx; b.y+=b.vy;
-    if(b.y>canvas.height||b.x<0||b
+    if(b.y>canvas.height||b.x<0||b.x>canvas.width) bullets.splice(i,1);
+  });
+ 
+  subs.forEach((sub,i)=>{
+    if(!sub.escape){ sub.y-=sub.speedY; sub.x+=sub.speedX; if(sub.x<0||sub.x>canvas.width) sub.speedX*=-1; } else sub.y-=2;
+ 
+    if(sub.special){
+      const pulseGlow = 10 + Math.sin(pulse)*10;
+      ctx.shadowBlur = pulseGlow;
+      ctx.shadowColor = "white";
+ 
+      // Double-color neon diagonal
+      ctx.beginPath();
+      ctx.moveTo(sub.x-15, sub.y-15);
+      ctx.lineTo(sub.x+15, sub.y-5);
+      ctx.lineTo(sub.x+15, sub.y+5);
+      ctx.lineTo(sub.x-15, sub.y+15);
+      ctx.closePath();
+ 
+      const grad = ctx.createLinearGradient(sub.x-15, sub.y-15, sub.x+15, sub.y+15);
+      grad.addColorStop(0, "#FF3EC5"); // neon pink
+      grad.addColorStop(1, "#00FFFF"); // neon blue
+      ctx.fillStyle = grad;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    } else { 
+      ctx.fillStyle=sub.boss?"#00FFFF":"#BF00FF"; 
+      ctx.beginPath(); 
+      ctx.ellipse(sub.x,sub.y,sub.boss?50:30,sub.boss?25:15,0,0,Math.PI*2); 
+      ctx.fill(); 
+    }
+ 
+    bullets.forEach((b,bi)=>{
+      const dx=b.x-sub.x, dy=b.y-sub.y;
+      if(Math.sqrt(dx*dx+dy*dy)<25 && !sub.escape){
+        sub.health--;
+        bullets.splice(bi,1);
+        spawnParticles(sub.x,sub.y,10,sub.special?null:(sub.boss?"#00FFFF":"#39FF14"));
+        if(sub.health<=0){
+          let winAmount=sub.mult;
+          if(sub.special){ 
+            winAmount=Math.random()<0.5?0:Math.floor(Math.random()*11+5)*bet; 
+            if(winAmount===0 && audioEnabled){ failSound.currentTime=0; failSound.play(); } 
+            else if(audioEnabled){ hitSound.currentTime=0; hitSound.play(); } 
+          } else if(audioEnabled){ hitSound.currentTime=0; hitSound.play(); }
+ 
+          subWins.push({x:sub.x,y:sub.y,amount:winAmount,opacity:1,color:sub.special?grad:(sub.boss?"#00FFFF":"#39FF14")});
+          balance+=winAmount; balanceEl.innerText=balance;
+ 
+          if(!sub.special) explosions.push({x:sub.x,y:sub.y,radius:10});
+          subs.splice(i,1); spawnSub();
+        }
+      }
+    });
+ 
+    if(sub.y<50 && !sub.escape){ sub.escape=true; if(audioEnabled){ escapeSound.currentTime=0; escapeSound.play(); } }
+    if(sub.y<-60) subs.splice(i,1);
+  });
+ 
+  explosions.forEach((ex,i)=>{ ctx.strokeStyle=`hsl(${Math.random()*360},100%,50%)`; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(ex.x,ex.y,ex.radius,0,Math.PI*2); ctx.stroke(); ex.radius+=2; if(ex.radius>30) explosions.splice(i,1); });
+ 
+  subWins.forEach((win,i)=>{ ctx.font="bold 24px Arial"; ctx.fillStyle=win.color; ctx.globalAlpha=win.opacity; ctx.fillText("+"+win.amount+" SZL",win.x-15,win.y); ctx.globalAlpha=1; win.y-=1; win.opacity-=0.02; if(win.opacity<=0) subWins.splice(i,1); });
+ 
+  particles.forEach((p,i)=>{ ctx.fillStyle=p.color; ctx.beginPath(); ctx.arc(p.x,p.y,p.size,0,Math.PI*2); ctx.fill(); p.x+=p.vx; p.y+=p.vy; p.life--; if(p.life<=0) particles.splice(i,1); });
+ 
+  requestAnimationFrame(gameLoop);
+}
+ 
+gameLoop();
+</script>
+</body>
+</html>
  
